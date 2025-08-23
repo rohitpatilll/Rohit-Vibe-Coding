@@ -22,6 +22,7 @@ import simpleGit from 'simple-git';
 import { diff_match_patch } from 'diff-match-patch';
 import TreeSitter from 'tree-sitter';
 import JavaScript from 'tree-sitter-javascript';
+import { Octokit } from '@octokit/rest';
 
 // --- SECURITY: Read the sandbox directory reliably ---
 const __filename = fileURLToPath(import.meta.url);
@@ -29,6 +30,8 @@ const __dirname = path.dirname(__filename);
 const packageJsonPath = path.join(__dirname, 'package.json');
 const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
 const SANDBOX_DIR = path.resolve(packageJson.projectDirectory);
+// Declare the fallback GitHub token. It will use the .env variable first.
+const GITHUB_TOKEN_FALLBACK = process.env.GITHUB_TOKEN || "";
 
 class AutonomousDeveloperMCPServer {
     constructor() {
@@ -364,6 +367,48 @@ class AutonomousDeveloperMCPServer {
                         },
                         required: ['command']
                     }
+                },
+                {
+                    name: 'create_github_repo',
+                    description: `
+    **Purpose:** Creates a new repository in a user's GitHub account.
+    
+    **When to use:**
+    - To programmatically create a new code repository.
+    - To initialize a project on GitHub from the command line.
+    
+    **Impact:** Automates the creation of GitHub repositories.
+    
+    **Example:** Create a new private repository named 'my-new-project'.
+    {
+      "repo_name": "my-new-project",
+      "description": "This is a new project.",
+      "is_private": true
+    }
+  `,
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            auth_token: {
+                                type: 'string',
+                                description: 'Optional GitHub Personal Access Token with repo scope. If not provided, the server will use the GITHUB_TOKEN from its environment variables.'
+                            },
+                            repo_name: {
+                                type: 'string',
+                                description: 'The name of the new repository'
+                            },
+                            description: {
+                                type: 'string',
+                                description: 'A short description of the repository'
+                            },
+                            is_private: {
+                                type: 'boolean',
+                                default: false,
+                                description: 'Whether the repository should be private'
+                            }
+                        },
+                        required: ['repo_name']
+                    }
                 }
             ]
         }));
@@ -385,6 +430,7 @@ class AutonomousDeveloperMCPServer {
                     case 'delete_file': result = await this.deleteFile(args); break;
                     case 'move_or_rename_file': result = await this.moveOrRenameFile(args); break;
                     case 'git_tool': result = await this.gitTool(args); break;
+                    case 'create_github_repo': result = await this.createGithubRepo(args); break;
                     default: throw new Error(`Unknown tool: ${name}`);
                 }
                 return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
@@ -668,6 +714,47 @@ class AutonomousDeveloperMCPServer {
                 return { success: true, message: await this.git.reset(args) };
             default:
                 throw new Error(`Unsupported git command: ${command}`);
+        }
+    }
+
+    async createGithubRepo(args) {
+        const { repo_name, description, is_private = false, auth_token } = args;
+
+        // Use the token from the tool call first, otherwise use the top-level variable
+        const token = auth_token || GITHUB_TOKEN_FALLBACK;
+
+        if (!token) {
+            throw new Error('GitHub token is missing. Provide it in the tool call or configure it on the server.');
+        }
+
+        try {
+            // Initialize Octokit with the token
+            const octokit = new Octokit({ auth: token });
+
+            // Call the GitHub API to create the repository
+            const response = await octokit.repos.createForAuthenticatedUser({
+                name: repo_name,
+                description: description,
+                private: is_private,
+            });
+
+            // Return a success message with the new repo's URL
+            const repoUrl = response.data.html_url;
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `✅ Successfully created GitHub repository!
+
+                        Repository Name: ${repo_name}
+                        URL: ${repoUrl}
+                        Visibility: ${is_private ? 'Private' : 'Public'}`
+                    }
+                ]
+            };
+        } catch (error) {
+            // Handle potential errors like bad credentials or repo already exists
+            throw new Error(`GitHub repository creation failed: ${error.message}`);
         }
     }
 
