@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Autonomous Developer MCP Server - V2.0
+ * Autonomous Developer MCP Server - V2.1
  *
- * Enhanced version with improved patching reliability and better tool descriptions
- * 
- * Key improvements:
- * - More reliable text replacement mechanisms
- * - Better error handling and recovery
- * - Clearer tool descriptions with extensive examples
- * - Additional helper tools for common operations
+ * Enhanced version with a professional git workflow and essential file system operations.
+ * * Key improvements:
+ * - Streamlined toolset by removing redundant/unnecessary tools.
+ * - Added `delete_file` and `move_or_rename_file` for complete file lifecycle management.
+ * - Massively enhanced `git_tool` with pull, push, and checkout capabilities, plus a detailed description
+ * of a professional development workflow to guide the agent.
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -34,7 +33,7 @@ const SANDBOX_DIR = path.resolve(packageJson.projectDirectory);
 class AutonomousDeveloperMCPServer {
     constructor() {
         this.server = new Server(
-            { name: 'autonomous-developer-mcp', version: '2.0.0' },
+            { name: 'autonomous-developer-mcp', version: '2.1.0' },
             { capabilities: { tools: {} } }
         );
         this.git = simpleGit({ baseDir: SANDBOX_DIR });
@@ -47,7 +46,7 @@ class AutonomousDeveloperMCPServer {
     _resolveSandboxPath(userPath) {
         const resolvedPath = path.resolve(SANDBOX_DIR, userPath);
         if (!resolvedPath.startsWith(SANDBOX_DIR)) {
-            throw new Error(`Security Violation: Path traversal attempt blocked.`);
+            throw new Error(`Security Violation: Path traversal attempt blocked for path: ${userPath}`);
         }
         return resolvedPath;
     }
@@ -59,12 +58,10 @@ class AutonomousDeveloperMCPServer {
                     name: 'create_or_overwrite_file',
                     description: `
                         **Purpose:** Creates a new file from scratch or completely replaces an existing file with new content.
-                        **When to use:** 
-                        - Creating new files
-                        - Making extensive changes to small files (< 100 lines)
-                        - When other editing tools fail repeatedly
-                        **When NOT to use:** 
-                        - For small edits in large files (use replace_text or edit tools instead)
+                        **When to use:** - Creating new files.
+                        - Making extensive changes to small files (< 100 lines).
+                        - When other editing tools fail repeatedly.
+                        **When NOT to use:** - For small edits in large files (use smart_replace instead).
                         **Example:** To create a simple Python web server file.
                         {
                             "file_path": "server.py",
@@ -85,7 +82,7 @@ class AutonomousDeveloperMCPServer {
                     description: `
                         **Purpose:** The MOST RELIABLE way to edit code. Intelligently replaces code by understanding context.
                         **When to use:** ALWAYS try this first for any code changes!
-                        **Why it's better:** Handles whitespace, finds similar matches, and work with partial content.
+                        **Why it's better:** Handles whitespace, finds similar matches, and works with partial content.
                         
                         **Strategy 1 - Minimal Context (RECOMMENDED):**
                         Include just enough context to uniquely identify the location:
@@ -95,26 +92,17 @@ class AutonomousDeveloperMCPServer {
                             "new_code": "x = 20"
                         }
                         
-                        **Strategy 2 - With Surrounding Context:**
-                        Include a line before/after for more precision:
-                        {
-                            "file_path": "config.js",
-                            "old_code": "const DEBUG = false;\\nconst API_URL = 'http://localhost';",
-                            "new_code": "const DEBUG = false;\\nconst API_URL = 'https://api.prod.com';"
-                        }
-                        
-                        **Strategy 3 - Function/Block Level:**
+                        **Strategy 2 - Function/Block Level:**
                         {
                             "file_path": "utils.py",
                             "old_code": "def calculate(x):\\n    return x * 2",
                             "new_code": "def calculate(x):\\n    return x * 3"
                         }
                         
-                        **THIS TOOL IS SMART:** 
-                        - Ignores minor whitespace differences
-                        - Handles indentation intelligently  
-                        - Can match partial lines if unique
-                        - Works with any programming language
+                        **THIS TOOL IS SMART:** - Ignores minor whitespace differences.
+                        - Handles indentation intelligently.
+                        - Can match partial lines if unique.
+                        - Works with any programming language.
                         
                         **Success Rate: 99%** when used correctly!
                     `,
@@ -138,12 +126,11 @@ class AutonomousDeveloperMCPServer {
                     name: 'search_in_file',
                     description: `
                         **Purpose:** Search for text/patterns in a file and get all occurrences with line numbers.
-                        **When to use:** 
-                        - Before making edits, to find exact locations
-                        - To verify if a change needs to be made
-                        - To find all instances of a variable/function
-                        **Returns:** Array of matches with line numbers and content
-                        **Example:** Find all occurrences of a function name
+                        **When to use:** - Before making edits, to find exact locations.
+                        - To verify if a change needs to be made.
+                        - To find all instances of a variable/function.
+                        **Returns:** Array of matches with line numbers and content.
+                        **Example:** Find all occurrences of a function name.
                         {
                             "file_path": "main.js",
                             "search_text": "handleClick",
@@ -161,57 +148,12 @@ class AutonomousDeveloperMCPServer {
                     }
                 },
                 {
-                    name: 'replace_text',
-                    description: `
-                        **Purpose:** Find and replace text in a file - the MOST RELIABLE way to edit files.
-                        **When to use:** This should be your PRIMARY tool for editing files
-                        - Changing variable values
-                        - Renaming functions
-                        - Updating imports
-                        - Modifying any specific text
-                        **Strategy:** Always make the find_text AS SPECIFIC AS POSSIBLE to avoid wrong replacements
-                        **Example 1:** Change a variable value
-                        {
-                            "file_path": "config.js",
-                            "find_text": "const API_URL = 'http://dev-server.com';",
-                            "replace_text": "const API_URL = 'http://prod-server.com';",
-                            "occurrence": "all"
-                        }
-                        **Example 2:** Change a specific function parameter
-                        {
-                            "file_path": "utils.py",
-                            "find_text": "def calculate(value, rate=0.05):",
-                            "replace_text": "def calculate(value, rate=0.07):",
-                            "occurrence": "first"
-                        }
-                        **Example 3:** Update an import statement
-                        {
-                            "file_path": "main.js",
-                            "find_text": "import { oldFunction } from './utils';",
-                            "replace_text": "import { newFunction } from './utils';",
-                            "occurrence": "all"
-                        }
-                        **IMPORTANT:** Include enough context in find_text to ensure unique match!
-                    `,
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            file_path: { type: 'string', description: 'The relative path to the file.' },
-                            find_text: { type: 'string', description: 'EXACT text to find (including whitespace and indentation).' },
-                            replace_text: { type: 'string', description: 'Text to replace with.' },
-                            occurrence: { type: 'string', enum: ['first', 'last', 'all'], default: 'all', description: 'Which occurrence(s) to replace.' }
-                        },
-                        required: ['file_path', 'find_text', 'replace_text']
-                    }
-                },
-                {
                     name: 'get_code_context',
                     description: `
                         **Purpose:** Retrieves a specific snippet of code from a file, including exact line numbers.
-                        **When to use:** 
-                        - Before using replace_text to see the exact content
-                        - To understand code structure around a specific line
-                        - To verify changes were applied correctly
+                        **When to use:** - Before using smart_replace to see the exact content.
+                        - To understand code structure around a specific line.
+                        - To verify changes were applied correctly.
                         **Returns:** Lines with numbers in format "LINE_NUM: CONTENT"
                         **Example:** To get the context around a function you want to modify on line 50.
                         {
@@ -219,7 +161,7 @@ class AutonomousDeveloperMCPServer {
                             "line_number": 50,
                             "context_lines": 5
                         }
-                        **Note:** Line numbers are 1-based (first line is line 1, not 0)
+                        **Note:** Line numbers are 1-based (first line is line 1, not 0).
                     `,
                     inputSchema: {
                         type: 'object',
@@ -232,55 +174,19 @@ class AutonomousDeveloperMCPServer {
                     }
                 },
                 {
-                    name: 'insert_lines',
-                    description: `
-                        **Purpose:** Insert new lines at a specific position in a file.
-                        **When to use:** 
-                        - Adding new imports at the beginning
-                        - Inserting new functions or methods
-                        - Adding configuration entries
-                        **Example 1:** Add import at line 3
-                        {
-                            "file_path": "main.py",
-                            "line_number": 3,
-                            "text_to_insert": "import json\\nimport requests",
-                            "position": "after"
-                        }
-                        **Example 2:** Insert new method in a class
-                        {
-                            "file_path": "user.py",
-                            "line_number": 25,
-                            "text_to_insert": "    def get_full_name(self):\\n        return f\\"{self.first_name} {self.last_name}\\"",
-                            "position": "after"
-                        }
-                        **Note:** Ensure proper indentation in text_to_insert!
-                    `,
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            file_path: { type: 'string', description: 'The relative path to the file.' },
-                            line_number: { type: 'integer', description: 'Line number where to insert (1-based).' },
-                            text_to_insert: { type: 'string', description: 'Text to insert (can include newlines).' },
-                            position: { type: 'string', enum: ['before', 'after'], default: 'after', description: 'Insert before or after the specified line.' }
-                        },
-                        required: ['file_path', 'line_number', 'text_to_insert']
-                    }
-                },
-                {
                     name: 'delete_lines',
                     description: `
                         **Purpose:** Delete a range of lines from a file.
-                        **When to use:** 
-                        - Removing deprecated functions
-                        - Deleting unused imports
-                        - Cleaning up commented code
-                        **Example:** Delete lines 10-15 (inclusive)
+                        **When to use:** - Removing deprecated functions.
+                        - Deleting unused imports.
+                        - Cleaning up commented code.
+                        **Example:** Delete lines 10-15 (inclusive).
                         {
                             "file_path": "old_code.js",
                             "start_line": 10,
                             "end_line": 15
                         }
-                        **Note:** Line numbers are inclusive and 1-based
+                        **Note:** Line numbers are inclusive and 1-based.
                     `,
                     inputSchema: {
                         type: 'object',
@@ -293,79 +199,23 @@ class AutonomousDeveloperMCPServer {
                     }
                 },
                 {
-                    name: 'apply_code_patch',
-                    description: `
-                        **Purpose:** Apply complex multi-line changes using smart patching that ALWAYS WORKS.
-                        **When to use:** For any code changes - this tool now has 99% success rate!
-                        
-                        **FORMAT 1 - Simple Diff (RECOMMENDED):**
-                        Just show what to remove (-) and what to add (+):
-                        {
-                            "file_path": "main.py",
-                            "patch_content": "- old line\\n+ new line"
-                        }
-                        
-                        **FORMAT 2 - With Context:**
-                        Include unchanged lines for precision:
-                        {
-                            "file_path": "app.js", 
-                            "patch_content": "  const x = 5;\\n- const y = 10;\\n+ const y = 20;\\n  const z = x + y;"
-                        }
-                        
-                        **FORMAT 3 - Standard Unified Diff:**
-                        {
-                            "file_path": "test.py",
-                            "patch_content": "@@ -10,3 +10,3 @@\\n def test():\\n-    return False\\n+    return True\\n     # end"
-                        }
-                        
-                        **SMART FEATURES:**
-                        - Auto-fixes format issues
-                        - Handles wrong line numbers
-                        - Intelligent whitespace matching
-                        - Falls back to pattern matching
-                        - Works even with approximate content
-                        
-                        **Examples that WILL WORK:**
-                        
-                        1. Simple change:
-                        "- pygame.draw.rect(screen, BLUE, block_rect)\\n+ pygame.draw.rect(screen, RED, block_rect)"
-                        
-                        2. Multi-line change:
-                        "- def old_function():\\n-     pass\\n+ def new_function():\\n+     return 42"
-                        
-                        3. With context:
-                        "  for item in items:\\n-     process(item, False)\\n+     process(item, True)\\n      print(item)"
-                        
-                        **The tool NOW handles ALL common issues automatically!**
-                    `,
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            file_path: { type: 'string', description: 'The relative path to the file to be patched.' },
-                            patch_content: { type: 'string', description: 'The change in any diff-like format (very flexible).' }
-                        },
-                        required: ['file_path', 'patch_content']
-                    }
-                },
-                {
                     name: 'execute_shell_command',
                     description: `
                         **Purpose:** Executes any shell command inside the project directory.
-                        **When to use:** 
-                        - Running tests after changes
-                        - Installing dependencies
-                        - Building the project
-                        - Running linters or formatters
-                        **Example 1:** Install dependencies
+                        **When to use:** - Running tests after changes.
+                        - Installing dependencies.
+                        - Building the project.
+                        - Running linters or formatters.
+                        **Example 1:** Install dependencies.
                         {
                             "command": "npm install express"
                         }
-                        **Example 2:** Run tests
+                        **Example 2:** Run tests.
                         {
                             "command": "python -m pytest tests/",
                             "timeout_seconds": 300
                         }
-                        **Note:** Commands run in the project directory with a default 120-second timeout
+                        **Note:** Commands run in the project directory with a default 120-second timeout.
                     `,
                     inputSchema: {
                         type: 'object',
@@ -380,12 +230,10 @@ class AutonomousDeveloperMCPServer {
                     name: 'read_file_content',
                     description: `
                         **Purpose:** Reads the entire content of a specified file.
-                        **When to use:** 
-                        - Initial understanding of file structure
-                        - Reading configuration files
-                        - Checking file content after modifications
-                        **When NOT to use:** 
-                        - For large files (use get_code_context instead)
+                        **When to use:** - Initial understanding of file structure.
+                        - Reading configuration files.
+                        - Checking file content after modifications.
+                        **When NOT to use:** - For large files (use get_code_context instead).
                         **Example:** To read a project's README file.
                         {
                             "file_path": "README.md"
@@ -403,15 +251,14 @@ class AutonomousDeveloperMCPServer {
                     name: 'list_directory',
                     description: `
                         **Purpose:** Lists the files and subdirectories within a directory.
-                        **When to use:** 
-                        - Initial project exploration
-                        - Finding files to modify
-                        - Understanding project structure
+                        **When to use:** - Initial project exploration.
+                        - Finding files to modify.
+                        - Understanding project structure.
                         **Example:** To see what's in the src directory.
                         {
                             "dir_path": "src"
                         }
-                        **Note:** Use "." for current directory
+                        **Note:** Use "." for current directory.
                     `,
                     inputSchema: {
                         type: 'object',
@@ -422,83 +269,100 @@ class AutonomousDeveloperMCPServer {
                     }
                 },
                 {
+                    name: 'delete_file',
+                    description: `
+                        **Purpose:** Deletes a file from the file system.
+                        **When to use:**
+                        - Removing temporary files.
+                        - Deleting old or unused code files after a refactor.
+                        - Cleaning up the project directory.
+                        **Example:** To delete a temporary data file.
+                        {
+                            "file_path": "temp/data.tmp"
+                        }
+                    `,
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            file_path: { type: 'string', description: 'The relative path of the file to delete.' }
+                        },
+                        required: ['file_path']
+                    }
+                },
+                {
+                    name: 'move_or_rename_file',
+                    description: `
+                        **Purpose:** Moves a file or directory to a new location, or renames it.
+                        **When to use:**
+                        - Renaming a file to better reflect its purpose (e.g., 'utils.js' -> 'api_helpers.js').
+                        - Moving a file to a more appropriate directory during a code refactor.
+                        **Example 1 (Rename):**
+                        {
+                            "source_path": "src/old_name.js",
+                            "destination_path": "src/new_name.js"
+                        }
+                        **Example 2 (Move):**
+                        {
+                            "source_path": "src/component.js",
+                            "destination_path": "src/components/component.js"
+                        }
+                    `,
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            source_path: { type: 'string', description: 'The original path of the file or directory.' },
+                            destination_path: { type: 'string', description: 'The new path for the file or directory.' }
+                        },
+                        required: ['source_path', 'destination_path']
+                    }
+                },
+                {
                     name: 'git_tool',
                     description: `
-                        **Purpose:** Perform Git operations for version control.
-                        **When to use:** AFTER verifying changes work correctly
-                        **Workflow:**
-                        1. Make changes
-                        2. Test/verify changes work
-                        3. Use git status to see what changed
-                        4. Use git add to stage changes
-                        5. Use git commit with descriptive message
+                        **Purpose:** Manages the project's version control with Git, enabling a professional, safe, and collaborative workflow.
                         
-                        **Example sequence:**
-                        {
-                            "command": "status"
-                        }
-                        {
-                            "command": "add",
-                            "args": ["."]
-                        }
-                        {
-                            "command": "commit",
-                            "args": ["feat: Add user authentication"]
-                        }
+                        **THE PROFESSIONAL WORKFLOW (Follow these steps for every task):**
+                        
+                        **1. Synchronize:** Before starting any work, get the latest code from the remote repository.
+                           - **Command:** \`pull\`
+                           - **Why:** Prevents conflicts and ensures you are working on the most up-to-date version of the project.
+                           
+                        **2. Isolate Your Work:** Create a new branch for the feature or bugfix you are working on. NEVER commit directly to 'main' or 'master'.
+                           - **Command:** \`checkout\` with \`args: ["-b", "your-branch-name"]\`
+                           - **Why:** Isolates your changes, preventing unstable code from affecting the main codebase. Allows for code reviews and parallel development.
+                           
+                        **3. Develop & Test:** Make your code changes using the file editing tools, and then test them thoroughly using \`execute_shell_command\`.
+                        
+                        **4. Check Your Changes:** See which files you have modified.
+                           - **Command:** \`status\`
+                           - **Why:** Gives you a clear overview of your work before you commit it.
+                           
+                        **5. Stage & Commit:** Add your changes to the staging area and then commit them with a clear, descriptive message.
+                           - **Step 5a (Stage):** \`add\` with \`args: ["."]\` to add all changes, or \`args: ["path/to/file.js"]\` for specific files.
+                           - **Step 5b (Commit):** \`commit\` with \`args: ["feat: Implement user login functionality"]\`
+                           - **Why:** Staging allows you to group related changes into a single commit. A good commit message is crucial for project history.
+                           
+                        **6. Share Your Work:** Push your new branch and its commits to the remote repository.
+                           - **Command:** \`push\` with \`args: ["-u", "origin", "your-branch-name"]\`
+                           - **Why:** This makes your work available to others for review or integration and backs it up remotely.
+                        
+                        **Example Sequence for a New Feature:**
+                        1. \`{ "command": "pull" }\`
+                        2. \`{ "command": "checkout", "args": ["-b", "feature/add-login-button"] }\`
+                        3. ... (use file tools to edit code) ...
+                        4. \`{ "command": "execute_shell_command", "command": "npm test" }\`
+                        5. \`{ "command": "status" }\`
+                        6. \`{ "command": "add", "args": ["src/components/Login.js"] }\`
+                        7. \`{ "command": "commit", "args": ["feat: Add new login button component"] }\`
+                        8. \`{ "command": "push", "args": ["-u", "origin", "feature/add-login-button"] }\`
                     `,
                     inputSchema: {
                         type: 'object',
                         properties: {
-                            command: { type: 'string', enum: ['status', 'diff', 'add', 'commit', 'branch'], description: 'The Git command to execute.' },
-                            args: { type: 'array', items: { type: 'string' }, description: 'Arguments for the command.' }
+                            command: { type: 'string', enum: ['status', 'diff', 'add', 'commit', 'branch', 'pull', 'push', 'checkout', 'log', 'reset'], description: 'The Git command to execute.' },
+                            args: { type: 'array', items: { type: 'string' }, default: [], description: 'Arguments for the command (e.g., branch name, file paths, commit message).' }
                         },
                         required: ['command']
-                    }
-                },
-                {
-                    name: 'analyze_code_structure',
-                    description: `
-                        **Purpose:** Analyzes code structure using AST (Abstract Syntax Tree).
-                        **When to use:** 
-                        - Finding all functions in a file
-                        - Listing imports
-                        - Understanding code organization
-                        **Example:** Find all function declarations
-                        {
-                            "file_path": "utils.js",
-                            "query_type": "find_function_declarations"
-                        }
-                        **Note:** Currently supports JavaScript/TypeScript files
-                    `,
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            file_path: { type: 'string', description: 'The relative path to the code file.' },
-                            query_type: { type: 'string', enum: ['find_function_declarations', 'list_imports'], description: 'The type of structural query to perform.' }
-                        },
-                        required: ['file_path', 'query_type']
-                    }
-                },
-                {
-                    name: 'task_planner',
-                    description: `
-                        **Purpose:** Breaks down a high-level goal into actionable steps.
-                        **When to use:** ALWAYS use this FIRST for any complex task
-                        **Example:**
-                        {
-                            "main_goal": "Add user authentication to Express app"
-                        }
-                        **Best practices:**
-                        - Be specific about the goal
-                        - Include technical requirements
-                        - Mention any constraints
-                    `,
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            main_goal: { type: 'string', description: 'The high-level objective to be achieved.' }
-                        },
-                        required: ['main_goal']
                     }
                 }
             ]
@@ -513,17 +377,14 @@ class AutonomousDeveloperMCPServer {
                     case 'create_or_overwrite_file': result = await this.createOrOverwrite_file(args); break;
                     case 'smart_replace': result = await this.smartReplace(args); break;
                     case 'search_in_file': result = await this.searchInFile(args); break;
-                    case 'replace_text': result = await this.replaceText(args); break;
                     case 'get_code_context': result = await this.getCodeContext(args); break;
-                    case 'insert_lines': result = await this.insertLines(args); break;
                     case 'delete_lines': result = await this.deleteLines(args); break;
-                    case 'apply_code_patch': result = await this.applyCodePatch(args); break;
                     case 'execute_shell_command': result = await this.executeShellCommand(args); break;
                     case 'read_file_content': result = await this.readFileContent(args); break;
                     case 'list_directory': result = await this.listDirectory(args); break;
+                    case 'delete_file': result = await this.deleteFile(args); break;
+                    case 'move_or_rename_file': result = await this.moveOrRenameFile(args); break;
                     case 'git_tool': result = await this.gitTool(args); break;
-                    case 'analyze_code_structure': result = await this.analyzeCodeStructure(args); break;
-                    case 'task_planner': result = await this.taskPlanner(args); break;
                     default: throw new Error(`Unknown tool: ${name}`);
                 }
                 return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
@@ -545,16 +406,16 @@ class AutonomousDeveloperMCPServer {
 
     getErrorHint(toolName, error) {
         const hints = {
-            'apply_code_patch': 'The patch format was auto-corrected but still failed. The tool tried multiple methods. Please check if the content to replace exists in the file.',
             'smart_replace': 'Could not find the specified code. Try using search_in_file to find the exact text, or use less context in old_code.',
-            'replace_text': 'Text not found. Use search_in_file to find exact text or get_code_context to see current content.',
-            'insert_lines': 'Invalid line number. Use read_file_content to check file length.',
-            'delete_lines': 'Invalid line range. Ensure start_line <= end_line and both are within file bounds.'
+            'delete_lines': 'Invalid line range. Ensure start_line <= end_line and both are within file bounds.',
+            'git_tool': 'Git command failed. Check your arguments. Common issues: trying to push without committing, or checking out a branch that does not exist.',
+            'move_or_rename_file': 'Operation failed. Ensure the source path exists and the destination path is valid.',
+            'delete_file': 'Could not delete file. Ensure the file path is correct and the file exists.'
         };
         return hints[toolName] || 'Check inputs and try again.';
     }
 
-    // --- Enhanced Tool Implementations ---
+    // --- Tool Implementations ---
 
     async smartReplace({ file_path, old_code, new_code, match_mode = 'smart' }) {
         const safePath = this._resolveSandboxPath(file_path);
@@ -564,50 +425,15 @@ class AutonomousDeveloperMCPServer {
         let matchFound = false;
 
         if (match_mode === 'exact') {
-            // Exact matching
             if (content.includes(old_code)) {
                 newContent = content.replace(old_code, new_code);
                 matchFound = true;
             }
-        } else if (match_mode === 'fuzzy') {
-            // Fuzzy matching - ignore whitespace differences
-            const normalizedContent = content.replace(/\s+/g, ' ');
-            const normalizedOld = old_code.replace(/\s+/g, ' ');
-            const index = normalizedContent.indexOf(normalizedOld);
-
-            if (index !== -1) {
-                // Find the actual text in original content
-                let start = 0;
-                let normalizedIndex = 0;
-
-                for (let i = 0; i < content.length; i++) {
-                    if (normalizedIndex === index) {
-                        start = i;
-                        break;
-                    }
-                    if (!/\s/.test(content[i]) || (i > 0 && /\s/.test(content[i - 1]))) {
-                        normalizedIndex++;
-                    }
-                }
-
-                // Find the end
-                let end = start;
-                let oldIndex = 0;
-                while (oldIndex < normalizedOld.length && end < content.length) {
-                    if (!/\s/.test(content[end]) || (end > start && /\s/.test(content[end - 1]))) {
-                        oldIndex++;
-                    }
-                    end++;
-                }
-
-                newContent = content.substring(0, start) + new_code + content.substring(end);
+        } else { // 'smart' or 'fuzzy' will use the smart matching logic
+            const result = this.smartMatch(content, old_code, new_code);
+            if (result) {
+                newContent = result;
                 matchFound = true;
-            }
-        } else {
-            // Smart matching - most flexible
-            matchFound = await this.smartMatch(content, old_code, new_code);
-            if (matchFound) {
-                newContent = matchFound;
             }
         }
 
@@ -625,78 +451,57 @@ class AutonomousDeveloperMCPServer {
         };
     }
 
-    async smartMatch(content, oldCode, newCode) {
-        // Try multiple strategies
-
-        // Strategy 1: Direct replacement
+    smartMatch(content, oldCode, newCode) {
+        // Strategy 1: Direct replacement (handles multi-line exact matches)
         if (content.includes(oldCode)) {
             return content.replace(oldCode, newCode);
         }
 
-        // Strategy 2: Trim and match
-        const trimmedOld = oldCode.trim();
+        // Strategy 2: Trimmed multi-line match (ignores leading/trailing whitespace on the whole block)
         const lines = content.split('\n');
-
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].trim() === trimmedOld) {
-                // Preserve original indentation
-                const indent = lines[i].match(/^(\s*)/)[1];
-                lines[i] = indent + newCode.trim();
-                return lines.join('\n');
-            }
-        }
-
-        // Strategy 3: Multi-line smart match
-        const oldLines = oldCode.trim().split('\n');
-        const newLines = newCode.trim().split('\n');
+        const oldLines = oldCode.trim().split('\n').map(l => l.trim());
+        const newLines = newCode.split('\n');
 
         for (let i = 0; i <= lines.length - oldLines.length; i++) {
             let match = true;
             for (let j = 0; j < oldLines.length; j++) {
-                if (lines[i + j].trim() !== oldLines[j].trim()) {
+                if (lines[i + j].trim() !== oldLines[j]) {
                     match = false;
                     break;
                 }
             }
 
             if (match) {
-                // Found match, preserve indentation
+                // Found a match, preserve indentation from the first matched line
                 const indent = lines[i].match(/^(\s*)/)[1];
-                const indentedNewLines = newLines.map(line => indent + line.trim());
+                const indentedNewLines = newLines.map(line => indent + line);
                 lines.splice(i, oldLines.length, ...indentedNewLines);
                 return lines.join('\n');
             }
         }
 
-        // Strategy 4: Partial line match
-        const oldParts = trimmedOld.split(/\s+/);
-        if (oldParts.length > 3) {
-            // Try to find lines containing significant parts
-            for (let i = 0; i < lines.length; i++) {
-                const lineParts = lines[i].trim().split(/\s+/);
-                let matchCount = 0;
-                for (const part of oldParts) {
-                    if (lineParts.includes(part)) matchCount++;
-                }
-
-                if (matchCount / oldParts.length > 0.8) {
-                    // 80% match
-                    const indent = lines[i].match(/^(\s*)/)[1];
-                    lines[i] = indent + newCode.trim();
-                    return lines.join('\n');
-                }
-            }
-        }
-
-        return false;
+        return false; // No match found
     }
 
     async createOrOverwrite_file({ file_path, content }) {
         const safePath = this._resolveSandboxPath(file_path);
-        // Ensure directory exists
         await fs.mkdir(path.dirname(safePath), { recursive: true });
         await fs.writeFile(safePath, content, 'utf-8');
         return { success: true, file_path, message: 'File created/overwritten successfully.' };
+    }
+
+    async deleteFile({ file_path }) {
+        const safePath = this._resolveSandboxPath(file_path);
+        await fs.unlink(safePath);
+        return { success: true, file_path, message: 'File deleted successfully.' };
+    }
+
+    async moveOrRenameFile({ source_path, destination_path }) {
+        const safeSourcePath = this._resolveSandboxPath(source_path);
+        const safeDestPath = this._resolveSandboxPath(destination_path);
+        await fs.mkdir(path.dirname(safeDestPath), { recursive: true });
+        await fs.rename(safeSourcePath, safeDestPath);
+        return { success: true, from: source_path, to: destination_path, message: 'File moved/renamed successfully.' };
     }
 
     async searchInFile({ file_path, search_text, case_sensitive = true }) {
@@ -705,16 +510,14 @@ class AutonomousDeveloperMCPServer {
         const lines = content.split('\n');
         const matches = [];
 
-        const searchRegex = case_sensitive
-            ? new RegExp(search_text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-            : new RegExp(search_text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        const flags = case_sensitive ? 'g' : 'gi';
+        const searchRegex = new RegExp(search_text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
 
         lines.forEach((line, index) => {
             if (searchRegex.test(line)) {
                 matches.push({
                     line_number: index + 1,
                     content: line,
-                    column_start: line.search(searchRegex) + 1
                 });
             }
         });
@@ -725,38 +528,6 @@ class AutonomousDeveloperMCPServer {
             search_text,
             matches,
             total_matches: matches.length
-        };
-    }
-
-    async replaceText({ file_path, find_text, replace_text, occurrence = 'all' }) {
-        const safePath = this._resolveSandboxPath(file_path);
-        let content = await fs.readFile(safePath, 'utf8');
-
-        // Count occurrences
-        const occurrences = (content.match(new RegExp(find_text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
-
-        if (occurrences === 0) {
-            throw new Error(`Text not found: "${find_text}"`);
-        }
-
-        let newContent;
-        if (occurrence === 'all') {
-            newContent = content.replaceAll(find_text, replace_text);
-        } else if (occurrence === 'first') {
-            newContent = content.replace(find_text, replace_text);
-        } else if (occurrence === 'last') {
-            const lastIndex = content.lastIndexOf(find_text);
-            newContent = content.substring(0, lastIndex) + replace_text + content.substring(lastIndex + find_text.length);
-        }
-
-        await fs.writeFile(safePath, newContent, 'utf-8');
-
-        const replacements = occurrence === 'all' ? occurrences : 1;
-        return {
-            success: true,
-            file_path,
-            replacements_made: replacements,
-            message: `Replaced ${replacements} occurrence(s) of text.`
         };
     }
 
@@ -786,31 +557,6 @@ class AutonomousDeveloperMCPServer {
         };
     }
 
-    async insertLines({ file_path, line_number, text_to_insert, position = 'after' }) {
-        const safePath = this._resolveSandboxPath(file_path);
-        const content = await fs.readFile(safePath, 'utf8');
-        const lines = content.split('\n');
-
-        if (line_number < 1 || line_number > lines.length + 1) {
-            throw new Error(`Line number ${line_number} is out of range (file has ${lines.length} lines)`);
-        }
-
-        const insertIndex = position === 'before' ? line_number - 1 : line_number;
-        const insertLines = text_to_insert.split('\n');
-
-        lines.splice(insertIndex, 0, ...insertLines);
-
-        await fs.writeFile(safePath, lines.join('\n'), 'utf-8');
-
-        return {
-            success: true,
-            file_path,
-            inserted_at_line: insertIndex + 1,
-            lines_inserted: insertLines.length,
-            message: `Inserted ${insertLines.length} line(s) ${position} line ${line_number}.`
-        };
-    }
-
     async deleteLines({ file_path, start_line, end_line }) {
         const safePath = this._resolveSandboxPath(file_path);
         const content = await fs.readFile(safePath, 'utf8');
@@ -831,133 +577,6 @@ class AutonomousDeveloperMCPServer {
             lines_deleted: deletedCount,
             message: `Deleted lines ${start_line}-${end_line} (${deletedCount} lines).`
         };
-    }
-
-    async applyCodePatch({ file_path, patch_content }) {
-        const safePath = this._resolveSandboxPath(file_path);
-        let originalContent = '';
-        try {
-            originalContent = await fs.readFile(safePath, 'utf-8');
-        } catch (error) {
-            if (error.code !== 'ENOENT') throw error;
-        }
-
-        // First, try to fix common patch format issues
-        let fixedPatch = this.fixPatchFormat(patch_content, originalContent);
-
-        // Normalize line endings
-        const normalizedContent = originalContent.replace(/\r\n/g, '\n');
-        const normalizedPatch = fixedPatch.replace(/\r\n/g, '\n');
-
-        // Try to apply the patch
-        try {
-            const patches = this.dmp.patch_fromText(normalizedPatch);
-            const [newContent, results] = this.dmp.patch_apply(patches, normalizedContent);
-
-            // Check if all patches applied successfully
-            const failed = results.filter(r => !r).length;
-            if (failed > 0) {
-                // Try alternative patching method
-                const alternativeResult = await this.alternativePatch(file_path, patch_content, originalContent);
-                if (alternativeResult.success) {
-                    return alternativeResult;
-                }
-                throw new Error(`Patch application failed: ${failed} of ${results.length} hunks failed.`);
-            }
-
-            await fs.writeFile(safePath, newContent, 'utf-8');
-            return {
-                success: true,
-                file_path,
-                message: 'Patch applied successfully.',
-                hunks_applied: results.length,
-                method: 'diff_match_patch'
-            };
-        } catch (error) {
-            // Try alternative patching method
-            const alternativeResult = await this.alternativePatch(file_path, patch_content, originalContent);
-            if (alternativeResult.success) {
-                return alternativeResult;
-            }
-            throw error;
-        }
-    }
-
-    fixPatchFormat(patch, originalContent) {
-        // Fix common format issues in patches
-        let fixed = patch;
-
-        // Fix missing line counts in headers (@@ -X +Y @@ -> @@ -X,1 +Y,1 @@)
-        fixed = fixed.replace(/@@ -(\d+) \+(\d+) @@/g, '@@ -$1,1 +$1,1 @@');
-
-        // Ensure proper spacing for diff lines
-        const lines = fixed.split('\n');
-        const fixedLines = [];
-        let inDiff = false;
-
-        for (let line of lines) {
-            if (line.startsWith('@@')) {
-                inDiff = true;
-                fixedLines.push(line);
-            } else if (inDiff && line.length > 0) {
-                // Ensure proper prefix
-                if (!line.startsWith(' ') && !line.startsWith('-') && !line.startsWith('+')) {
-                    // Try to infer the prefix
-                    if (line.includes('- ')) {
-                        line = '-' + line.substring(line.indexOf('- ') + 2);
-                    } else if (line.includes('+ ')) {
-                        line = '+' + line.substring(line.indexOf('+ ') + 2);
-                    } else {
-                        // Assume it's a context line
-                        line = ' ' + line;
-                    }
-                }
-                fixedLines.push(line);
-            } else {
-                fixedLines.push(line);
-            }
-        }
-
-        return fixedLines.join('\n');
-    }
-
-    async alternativePatch(file_path, patch_content, originalContent) {
-        // Alternative patching method using simple pattern matching
-        try {
-            const lines = patch_content.split('\n');
-            let oldText = '';
-            let newText = '';
-            let collectingOld = false;
-            let collectingNew = false;
-
-            for (const line of lines) {
-                if (line.startsWith('-') && !line.startsWith('---')) {
-                    collectingOld = true;
-                    collectingNew = false;
-                    oldText += (oldText ? '\n' : '') + line.substring(1).trimStart();
-                } else if (line.startsWith('+') && !line.startsWith('+++')) {
-                    collectingNew = true;
-                    collectingOld = false;
-                    newText += (newText ? '\n' : '') + line.substring(1).trimStart();
-                }
-            }
-
-            if (oldText && newText && originalContent.includes(oldText)) {
-                const newContent = originalContent.replace(oldText, newText);
-                const safePath = this._resolveSandboxPath(file_path);
-                await fs.writeFile(safePath, newContent, 'utf-8');
-                return {
-                    success: true,
-                    file_path,
-                    message: 'Patch applied successfully using alternative method.',
-                    method: 'simple_replacement'
-                };
-            }
-
-            return { success: false };
-        } catch (error) {
-            return { success: false };
-        }
     }
 
     async executeShellCommand({ command, timeout_seconds = 120 }) {
@@ -998,7 +617,13 @@ class AutonomousDeveloperMCPServer {
 
         const items = await Promise.all(entries.map(async (entry) => {
             const fullPath = path.join(safePath, entry.name);
-            const stats = await fs.stat(fullPath);
+            let stats;
+            try {
+                stats = await fs.stat(fullPath);
+            } catch (e) {
+                // Handle broken symlinks or permission errors gracefully
+                return { name: entry.name, type: 'inaccessible', size: null, modified: null };
+            }
             return {
                 name: entry.name,
                 type: entry.isDirectory() ? 'directory' : 'file',
@@ -1011,7 +636,6 @@ class AutonomousDeveloperMCPServer {
             success: true,
             path: dir_path,
             entries: items.sort((a, b) => {
-                // Directories first, then files
                 if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
                 return a.name.localeCompare(b.name);
             })
@@ -1021,97 +645,36 @@ class AutonomousDeveloperMCPServer {
     async gitTool({ command, args = [] }) {
         switch (command) {
             case 'status':
-                const status = await this.git.status();
-                return { ...status, success: true };
+                return { ...(await this.git.status()), success: true };
             case 'diff':
-                const diff = await this.git.diff(args);
-                return { success: true, diff };
+                return { success: true, diff: await this.git.diff(args) };
             case 'add':
                 await this.git.add(args.length > 0 ? args : '.');
-                return { success: true, message: `Added files: ${args.join(', ') || 'all'}` };
+                return { success: true, message: `Added files: ${args.join(', ') || 'all staged'}` };
             case 'commit':
-                const commitResult = await this.git.commit(args[0] || 'Automated commit');
-                return { success: true, ...commitResult };
+                if (args.length === 0) throw new Error("Commit message is required.");
+                return { success: true, ...(await this.git.commit(args[0])) };
             case 'branch':
-                const branches = await this.git.branch(args);
-                return { success: true, ...branches };
+                return { success: true, ...(await this.git.branch(args)) };
+            case 'pull':
+                return { success: true, ...(await this.git.pull(args)) };
+            case 'push':
+                return { success: true, ...(await this.git.push(args)) };
+            case 'checkout':
+                return { success: true, message: await this.git.checkout(args) };
+            case 'log':
+                return { success: true, ...(await this.git.log(args)) };
+            case 'reset':
+                return { success: true, message: await this.git.reset(args) };
             default:
                 throw new Error(`Unsupported git command: ${command}`);
         }
     }
 
-    async analyzeCodeStructure({ file_path, query_type }) {
-        const safePath = this._resolveSandboxPath(file_path);
-        const code = await fs.readFile(safePath, 'utf8');
-        const tree = this.parser.parse(code);
-        const results = [];
-
-        const queryMap = {
-            'find_function_declarations': '(function_declaration) @func',
-            'list_imports': '(import_statement) @import',
-        };
-
-        const queryString = queryMap[query_type];
-        if (!queryString) {
-            throw new Error(`Unsupported query type: ${query_type}`);
-        }
-
-        const query = new TreeSitter.Query(JavaScript, queryString);
-        const matches = query.matches(tree.rootNode);
-
-        for (const match of matches) {
-            for (const capture of match.captures) {
-                const node = capture.node;
-                results.push({
-                    type: node.type,
-                    text: node.text,
-                    start_line: node.startPosition.row + 1,
-                    end_line: node.endPosition.row + 1,
-                    start_column: node.startPosition.column + 1,
-                    end_column: node.endPosition.column + 1
-                });
-            }
-        }
-
-        return {
-            success: true,
-            file_path,
-            query_type,
-            results,
-            total_found: results.length
-        };
-    }
-
-    async taskPlanner({ main_goal }) {
-        // This is a conceptual tool that helps the AI plan
-        const timestamp = new Date().toISOString();
-        return {
-            success: true,
-            message: "Task planning initialized. Break down your goal into specific, actionable steps.",
-            goal: main_goal,
-            timestamp,
-            suggested_workflow: [
-                "1. Use list_directory to explore project structure",
-                "2. Use read_file_content to understand existing code",
-                "3. Use search_in_file to locate specific code sections",
-                "4. Use smart_replace or apply_code_patch for edits (BOTH work great now!)",
-                "5. Use execute_shell_command to test changes",
-                "6. Use git_tool to commit working changes"
-            ],
-            editing_strategy: {
-                "simple_changes": "Use smart_replace - 99% success rate",
-                "complex_changes": "Use apply_code_patch - now handles any format",
-                "adding_code": "Use insert_lines",
-                "removing_code": "Use delete_lines",
-                "finding_code": "Use search_in_file before editing"
-            }
-        };
-    }
-
     async start() {
-        console.error(`🚀 Autonomous Developer MCP Server v2.0 is online.`);
+        console.error(`🚀 Autonomous Developer MCP Server v2.1 is online.`);
         console.error(`🔒 Operating in sandboxed directory: ${SANDBOX_DIR}`);
-        console.error(`✨ Enhanced with improved patching and new tools`);
+        console.error(`✨ Enhanced with professional Git workflow and file management tools.`);
         const transport = new StdioServerTransport();
         await this.server.connect(transport);
     }
